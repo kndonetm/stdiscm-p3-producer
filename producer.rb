@@ -8,6 +8,8 @@ def send_command(msg, socket)
     socket.write msg
 end
 
+puts "Attempting to connect to #{ENV["HOSTNAME"]} Port #{ENV["PORT"]}"
+
 TCPSocket.open(ENV["HOSTNAME"], ENV["PORT"]) do |socket| 
     videos = Dir.children(ENV["VIDEO_DIRECTORY"]).select { |filename|
         filename.end_with?(".mp4") or filename.end_with?(".mkv") or filename.end_with?(".mov")
