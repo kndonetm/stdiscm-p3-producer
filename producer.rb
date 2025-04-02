@@ -8,10 +8,27 @@ class VideoClient
         @video_directory = settings["VIDEO_DIRECTORY"]
     end
 
-    def send_command(msg)
-        puts msg.length
-        @socket.write [msg.length].pack("q")
-        @socket.write msg
+    def send_video(video, socket)
+        puts "Attempting to send video to server"
+        socket.write video
+        wait_for_ok socket
+    end
+
+    def send_command(msg, socket)
+        puts "Attempting to send command #{msg} to server"
+        socket.write [msg.length].pack("q")
+        socket.write msg
+        wait_for_ok socket
+    end
+
+    def wait_for_ok(socket)
+        if socket.read(2) == "OK"
+            puts "Received OK"
+            return true
+        else
+            puts "Error receiving OK"
+            return false
+        end
     end
 
     def upload
@@ -36,8 +53,8 @@ class VideoClient
                 filename: name
             }
     
-            send_command JSON.generate(cmd)
-            @socket.write data
+            send_command JSON.generate(cmd), @socket
+            send_video data, @socket
         end    
     
         @socket.close
