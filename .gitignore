@@ -1,5 +1,7 @@
 # don't include uploaded videos
 videos
+cat_videos
+dog_videos
 
 *.gem
 *.rbc
