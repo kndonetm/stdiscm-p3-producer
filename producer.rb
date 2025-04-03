@@ -7,6 +7,20 @@ class VideoClient
         @port = settings["PORT"]
 
         @video_dirs = settings["VIDEO_DIRECTORIES"].split(",")
+
+        @num_threads = settings["NUM_PRODUCER_THREADS"].to_i
+
+        @threads = []
+
+        for i in 1..@num_threads do
+            @threads << Thread.start(i) do |id| 
+                worker_thread id
+            end
+        end
+    end
+
+    def worker_thread(id)
+        puts "Created producer thread with id #{id}"
     end
 
     def send_video(video, socket, filename=nil)
@@ -26,6 +40,15 @@ class VideoClient
         wait_for_ok socket
     end
 
+    def receive_json(socket)
+        size = socket.read(8)
+        if not size then return end
+        size = size.unpack1('q')
+        json = socket.read(size)
+        puts "Received #{json}"
+        return json
+    end
+
     def wait_for_ok(socket)
         if socket.read(2) == "OK"
             puts "Received OK"
@@ -34,6 +57,11 @@ class VideoClient
             puts "Error receiving OK"
             return false
         end
+    end
+
+    def send_ok(socket)
+        puts "Sent OK"
+        socket.write("OK")
     end
 
     def get_videos_in_directory(dirname)
@@ -45,29 +73,54 @@ class VideoClient
         }
     end
 
+    def send_file_command(size, filename)
+        return JSON.generate({
+            action: "sendFile",
+            size: size,
+            filename: filename
+        })
+    end
+
+    def request_threads_command(video_counts)
+        return JSON.generate({
+            action: "requestThreads",
+            video_counts: video_counts
+        })
+    end
+
+    def exit_command
+        return JSON.generate({action: "exit"})
+    end
+
     def upload
         puts "Attempting to connect to #{@hostname} Port #{@port}"
         @socket = TCPSocket.open(@hostname, @port)
 
-        @video_dirs.each do |dirname|
-            videos = get_videos_in_directory dirname
-
-            videos.each do |video|
-                name = File.basename(video)
-                data = IO.binread(video)
-                size = data.length
-                
-                cmd = {
-                    action: "sendFile",
-                    size: size,
-                    filename: name
-                }
-        
-                send_json JSON.generate(cmd), @socket
-                send_video data, @socket, File.join(video)
-            end   
+        video_counts = @video_dirs.map do |dirname| 
+            videos = get_videos_in_directory dirname 
+            videos.length
         end
 
+        send_json request_threads_command(video_counts), @socket
+        response = receive_json @socket
+
+
+
+        # @video_dirs.each do |dirname|
+        #     videos = get_videos_in_directory dirname
+
+        #     videos.each do |video|
+        #         name = File.basename(video)
+        #         data = IO.binread(video)
+        #         size = data.length
+        
+        #         send_json send_file_command(size, name), @socket
+        #         send_video data, @socket, File.join(video)
+        #     end   
+        # end
+
+        send_json exit_command, @socket
         @socket.close
+        return
     end
 end
