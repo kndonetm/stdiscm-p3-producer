@@ -1,5 +1,11 @@
 # don't include uploaded videos
 uploaded_videos/*
+videos
+videos1
+videos2
+cat_videos
+dog_videos
+other_animal_videos
 
 *.gem
 *.rbc

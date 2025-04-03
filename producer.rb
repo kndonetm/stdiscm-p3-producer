@@ -8,19 +8,27 @@ class VideoClient
 
         @video_dirs = settings["VIDEO_DIRECTORIES"].split(",")
 
-        @num_threads = settings["NUM_PRODUCER_THREADS"].to_i
+        @num_threads = @video_dirs.length
 
         @threads = []
-
-        for i in 1..@num_threads do
-            @threads << Thread.start(i) do |id| 
-                worker_thread id
-            end
-        end
     end
 
-    def worker_thread(id)
-        puts "Created producer thread with id #{id}"
+    def worker_thread(response)
+
+        puts "Created producer thread with id #{response["id"]}"
+        worker_socket = TCPSocket.open(@hostname, response["port"])
+
+        videos = get_videos_in_directory @video_dirs[response["id"]]
+        videos.each do |video|
+            name = File.basename(video)
+            data = IO.binread(video)
+            size = data.length
+    
+            send_json send_file_command(size, name), worker_socket
+            send_video data, worker_socket, File.join(video)
+        end
+
+        worker_socket.close
     end
 
     def send_video(video, socket, filename=nil)
@@ -46,7 +54,7 @@ class VideoClient
         size = size.unpack1('q')
         json = socket.read(size)
         puts "Received #{json}"
-        return json
+        return JSON.parse(json)
     end
 
     def wait_for_ok(socket)
@@ -104,20 +112,20 @@ class VideoClient
         send_json request_threads_command(video_counts), @socket
         response = receive_json @socket
 
+        num_assigned = response["assigned"].length
+        num_queued = response["queued"].length
 
+        (num_assigned).times do 
+            response = receive_json @socket
 
-        # @video_dirs.each do |dirname|
-        #     videos = get_videos_in_directory dirname
+            @threads << Thread.start(response) do |response| 
+                worker_thread response
+            end
+        end
 
-        #     videos.each do |video|
-        #         name = File.basename(video)
-        #         data = IO.binread(video)
-        #         size = data.length
-        
-        #         send_json send_file_command(size, name), @socket
-        #         send_video data, @socket, File.join(video)
-        #     end   
-        # end
+        @threads.each do |thread|
+            thread.join
+        end
 
         send_json exit_command, @socket
         @socket.close
