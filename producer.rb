@@ -17,8 +17,13 @@ class VideoClient
 
         puts "Created producer thread with id #{response["id"]}"
         worker_socket = TCPSocket.open(@hostname, response["port"])
+        max_num_videos = response["num_videos"]
 
         videos = get_videos_in_directory @video_dirs[response["id"]]
+        if max_num_videos < videos.length then
+            videos = videos[0, max_num_videos]
+        end
+
         videos.each do |video|
             name = File.basename(video)
             data = IO.binread(video)
@@ -115,7 +120,7 @@ class VideoClient
         num_assigned = response["assigned"].length
         num_queued = response["queued"].length
 
-        (num_assigned).times do 
+        (num_assigned + num_queued).times do 
             response = receive_json @socket
 
             @threads << Thread.start(response) do |response| 
