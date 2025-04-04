@@ -1,16 +1,46 @@
 require "socket"
 require 'json'
+require 'resolv'
 
 class VideoClient 
     def initialize(settings)
         @hostname = settings["HOSTNAME"]
-        @port = settings["PORT"]
+        @port = string_to_i_safe(settings["PORT"], "PORT", min=0, max=65535)
 
         @video_dirs = settings["VIDEO_DIRECTORIES"].split(",")
+
+        @video_dirs.each do |dirname|
+            if not File.directory? dirname then
+                raise ArgumentError.new("Item \" #{dirname} \" in VIDEO_DIRECTORIES is not a directory")
+            end
+        end
+
+        if not !!(@hostname =~ Resolv::AddressRegex) and not @hostname == "localhost" then
+            raise ArgumentError.new("BOUND_ADDR is not a valid IP address, got \"#{@hostname}\"")
+        end
+
 
         @num_threads = @video_dirs.length
 
         @threads = []
+    end
+
+    def string_to_i_safe(string, variable_name="variable", min=nil, max=nil)
+        val = string.to_i
+
+        if val.to_s != string then
+            raise ArgumentError.new("Invalid environment configuration: #{variable_name} must be an integer, found #{string}")
+        end
+
+        if min != nil and val < min then
+            raise ArgumentError.new("Invalid environment configuration: #{variable_name} must be at least #{min}, found #{val}")
+        end
+
+        if max != nil and val > max then
+            raise ArgumentError.new("Invalid environment configuration: #{variable_name} must be at most #{max}, found #{val}")
+        end
+
+        return val
     end
 
     def worker_thread(response)
