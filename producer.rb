@@ -16,6 +16,10 @@ class VideoClient
             end
         end
 
+        if @video_dirs.uniq != @video_dirs then
+            raise ArgumentError.new("List of video directories should not contain any duplicates")
+        end
+
         if not !!(@hostname =~ Resolv::AddressRegex) and not @hostname == "localhost" then
             raise ArgumentError.new("BOUND_ADDR is not a valid IP address, got \"#{@hostname}\"")
         end
