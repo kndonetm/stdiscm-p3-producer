@@ -1,6 +1,7 @@
 require "socket"
 require 'json'
 require 'resolv'
+require 'digest'
 
 class VideoClient 
     def initialize(settings)
@@ -58,13 +59,21 @@ class VideoClient
             name = File.basename(video)
             data = IO.binread(video)
             size = data.length
+            hash = Digest::MD5.hexdigest data
     
-            send_json send_file_command(size, name), worker_socket
-            send_video data, worker_socket, File.join(video)
+            send_json send_file_command(size, name, hash), worker_socket
+            is_duplicate = receive_json(worker_socket)["is_duplicate"]
+            if !is_duplicate then
+                send_video data, worker_socket, File.join(video)
+            else
+                puts "Video #{video} is already uploaded to the server, skipping..."
+            end
         end
 
         worker_socket.close
     end
+
+
 
     def send_video(video, socket, filename=nil)
         if filename == nil then
@@ -116,11 +125,12 @@ class VideoClient
         }
     end
 
-    def send_file_command(size, filename)
+    def send_file_command(size, filename, hash)
         return JSON.generate({
             action: "sendFile",
             size: size,
-            filename: filename
+            filename: filename,
+            hash: hash
         })
     end
 
@@ -149,6 +159,8 @@ class VideoClient
 
         num_assigned = response["assigned"].length
         num_queued = response["queued"].length
+
+        puts "#{video_counts.length - num_assigned - num_queued} upload threads dropped"
 
         (num_assigned + num_queued).times do 
             response = receive_json @socket
