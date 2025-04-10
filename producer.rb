@@ -2,6 +2,7 @@ require "socket"
 require 'json'
 require 'resolv'
 require 'digest'
+require 'dotenv/load'
 
 class VideoClient 
     def initialize(settings)
@@ -183,3 +184,6 @@ class VideoClient
         return
     end
 end
+
+client = VideoClient.new(ENV)
+client.upload
